@@ -1,0 +1,6 @@
+node_modules/
+.overmind.sock
+yarn-error.log
+out/
+.DS_Store
+test-chain.ipc

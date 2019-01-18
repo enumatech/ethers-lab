@@ -1,0 +1,22 @@
+{
+  "name": "ethers-lab",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "echo Nothing to start. Refer the README for instructions or run the tests with `yarn test`.",
+    "test": "echo No tests at the moment"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enumatech/ethers-lab.git"
+  },
+  "homepage": "https://github.com/enumatech/ethers-lab#readme",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ethers": "enumatech/ethers.js#chunked-ipc",
+    "ramda": "0.26.1",
+    "unexpected": "^11.0.1"
+  }
+}
