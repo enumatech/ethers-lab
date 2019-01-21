@@ -1,7 +1,7 @@
 const Fs = require('fs')
 const Path = require('path')
 const {inspect} = require('util')
-const {times} = require('ramda')
+const R = require('ramda')
 const ethers = require('ethers')
 const {utils: {BigNumber: BN, parseEther}} = ethers
 const I = require('./i-notation.js')(BN, inspect)
@@ -13,11 +13,25 @@ const probe = x => {
     return x
 }
 
+const now = () => (new Date()).getTime()
+
 const load = file =>
     Fs.readFileSync(Path.join(__dirname, file), 'utf-8')
 
+let trace = {}
+
+// Timestamp a copy of an arbitrary object
+const assocTS = obj => R.assoc('TS', now(), obj)
+
+// Store a timestamped copy of data under trace[hash][key]
+const traceTX = (hash, key, data) =>
+    (trace = R.assocPath([hash, key], assocTS(data), trace), data)
+
 const transact = (contractMethodCall) =>
-    contractMethodCall.then(tx => tx.wait())
+    contractMethodCall
+        .then(tx => traceTX(tx.hash, 'tx', tx))
+        .then(tx => tx.wait())
+        .then(txr => traceTX(txr.transactionHash, 'txr', txr))
 
 const deploy = async ({abi, bin}, args, Deployer) => {
     const contractFactory = new ethers.ContractFactory(abi, bin, Deployer)
@@ -25,12 +39,14 @@ const deploy = async ({abi, bin}, args, Deployer) => {
 }
 
 const sendEth = async (from, to, value) =>
-    transact(from.sendTransaction({to: await to.getAddress(), value}))
-// from.sendTransaction({to: await to.getAddress(), value})
-//     .then(({hash})=> from.provider.waitForTransaction(hash))
+    transact(
+        from.sendTransaction({to: await to.getAddress(), value})
+            .then(R.assoc('META', 'ETH transfer')))
 
 const sendToken = async (fromToken, to, amt) =>
-    transact(fromToken.transfer(await to.getAddress(), amt))
+    transact(
+        fromToken.transfer(await to.getAddress(), amt)
+            .then(R.assoc('META', 'token transfer')))
 
 const expectEth = async (from, to, ethAmt = parseEther(`10`)) => {
     await sendEth(from, to, ethAmt)
@@ -67,18 +83,31 @@ const run = async () => {
         const Alice = mkActor()
         await Promise.all([
             expectEth(Deployer, Alice),
-            expectToken(token, Alice)])
+            expectToken(token, Alice)
+        ])
     }
 
     const expectFundsSequentially = async () => {
         const Alice = mkActor()
         await expectEth(Deployer, Alice)
-        // await expectToken(token, Alice)
+        await expectToken(token, Alice)
     }
 
     await expectFundsParallel()
-    // await expectFundsSequentially()
-    await Promise.all(times(expectFundsParallel, 10))
+    await expectFundsSequentially()
+
+    await Promise.all(R.times(expectFundsParallel, 100))
+
+    const txLatency = ({tx, txr}) => [
+        txr.TS - tx.TS,
+        tx.blockNumber,
+        txr.blockNumber,
+        txr.transactionIndex,
+        tx.META
+    ]
+
+    probe(R.map(txLatency, trace))
+
     console.log('Done')
 }
 
