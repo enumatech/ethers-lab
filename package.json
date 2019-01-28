@@ -15,8 +15,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bignumber.js": "^8.0.2",
     "ethers": "enumatech/ethers.js#chunked-ipc",
     "ramda": "0.26.1",
     "unexpected": "^11.0.1"
+  },
+  "devDependencies": {
+    "tap": "^12.4.0"
   }
 }

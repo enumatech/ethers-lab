@@ -1,5 +1,8 @@
-module.exports = function (expect, BN, inspect) {
-    if (!BN) throw new Error('BN constructor/class is required')
+const {inspect} = require('util')
+const assert = require('assert')
+
+module.exports = function (expect, BN) {
+    assert(BN, 'BN constructor/class is required')
 
     expect.addType({
         name: 'BN',
