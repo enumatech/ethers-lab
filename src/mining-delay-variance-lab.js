@@ -22,10 +22,17 @@ let trace = {}
 
 // Timestamp a copy of an arbitrary object
 const assocTS = obj => R.assoc('TS', now(), obj)
+const withMeta = metaData => obj => {
+    obj.META = metaData
+    return obj
+}
 
 // Store a timestamped copy of data under trace[hash][key]
-const traceTX = (hash, key, data) =>
-    (trace = R.assocPath([hash, key], assocTS(data), trace), data)
+const traceTX = (hash, key, data) => {
+    trace = R.assocPath([hash, key], assocTS(data), trace)
+    // probe(data)
+    return data
+}
 
 const transact = (contractMethodCall) =>
     contractMethodCall
@@ -41,19 +48,19 @@ const deploy = async ({abi, bin}, args, Deployer) => {
 const sendEth = async (from, to, value) =>
     transact(
         from.sendTransaction({to: await to.getAddress(), value})
-            .then(R.assoc('META', 'ETH transfer')))
+            .then(withMeta('ETH transfer')))
 
 const sendToken = async (fromToken, to, amt) =>
     transact(
         fromToken.transfer(await to.getAddress(), amt)
-            .then(R.assoc('META', 'token transfer')))
+            .then(withMeta('token transfer')))
 
-const expectEth = async (from, to, ethAmt = parseEther(`10`)) => {
+const expectEth = async (from, to, ethAmt = parseEther(`1`)) => {
     await sendEth(from, to, ethAmt)
     await expect(to.getBalance(), 'to be fulfilled with', ethAmt)
 }
 
-const expectToken = async (from, to, tokenAmt = I`20`) => {
+const expectToken = async (from, to, tokenAmt = I`2`) => {
     await sendToken(from, to, tokenAmt)
     await expect(from.balanceOf(to.address), 'to be fulfilled with', tokenAmt)
 }
@@ -61,9 +68,14 @@ const expectToken = async (from, to, tokenAmt = I`20`) => {
 const run = async () => {
     const rpcPath = 'http://localhost:9545'
     const chain = new ethers.providers.JsonRpcProvider(rpcPath)
-    const Deployer = await chain.getSigner(0)
+    const Coinbase = await chain.getSigner(0)
     const mkActor = () => ethers.Wallet.createRandom().connect(chain)
+    const Deployer = mkActor()
     const Alice = mkActor()
+
+    await sendEth(Coinbase, Deployer, parseEther(`1000`))
+
+    probe('=========================== Deployer funded')
 
     const ERC20Token = {
         abi: JSON.parse(load('../out/ERC20Token.abi')),
@@ -79,12 +91,14 @@ const run = async () => {
     await expectEth(Deployer, Alice)
     await expectToken(token, Alice)
 
+    await sendEth(Deployer, Alice, parseEther(`1`))
+    await sendToken(token, Alice, I`2`)
+
     const expectFundsParallel = async () => {
-        const Alice = mkActor()
+        const Someone = mkActor()
         await Promise.all([
-            expectEth(Deployer, Alice),
-            expectToken(token, Alice)
-        ])
+            expectEth(Deployer, Someone),
+            expectToken(token, Someone)])
     }
 
     const expectFundsSequentially = async () => {
@@ -93,10 +107,10 @@ const run = async () => {
         await expectToken(token, Alice)
     }
 
-    await expectFundsParallel()
+    // await expectFundsParallel()
     await expectFundsSequentially()
 
-    await Promise.all(R.times(expectFundsParallel, 100))
+    // await Promise.all(R.times(expectFundsParallel, 100))
 
     const txLatency = ({tx, txr}) => [
         txr.TS - tx.TS,
